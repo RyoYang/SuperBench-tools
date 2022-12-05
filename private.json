@@ -1,0 +1,4 @@
+{
+    "fileUris": ["https://ibvalidationsa.blob.core.windows.net/ibvalidation/deploy_sb.sh"],
+    "commandToExecute": "./deploy_sb.sh"
+}
