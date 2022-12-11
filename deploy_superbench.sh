@@ -70,8 +70,8 @@ deploy_superbench(){
     make postinstall
 
     # make postinstall
-    sb deploy -f ~/remote.ini --private-key ~/private_key.txt
-    sb run -c ~/ib.yaml -f ~/remote.ini
+    sb deploy -f /home/yangwang1-vmss/remote.ini --private-key /home/yangwang1-vmss/private_key.txt
+    sb run -c /home/yangwang1-vmss/ib.yaml -f /home/yangwang1-vmss/remote.ini
 
     # echo "##vso[task.setvariable variable=private_key_file]$private_key_file"    
 }
