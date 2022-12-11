@@ -1,0 +1,5 @@
+az vmss extension set --name customScript --settings public.json --publisher Microsoft.Azure.Extensions --resource-group Azure-HPC-China --version 2.0 --vmss-name yangwang1-vmss
+
+az vmss extension delete --name customScript --resource-group Azure-HPC-China --vmss-name yangwang1-vmss
+
+az vmss update-instances --instance-ids 117 --resource-group Azure-HPC-China --name yangwang1-vmss

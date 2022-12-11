@@ -1,4 +1,4 @@
 {
-    "fileUris": ["https://ibvalidationsa.blob.core.windows.net/ibvalidation/deploy_sb.sh"],
-    "commandToExecute": "./deploy_sb.sh"
+    "fileUris": ["https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"],
+    "commandToExecute": "./deploy_superbench.sh"
 }
