@@ -51,6 +51,8 @@ deploy_superbench(){
         && sudo  ln -s /usr/bin/python3.7 /usr/bin/python3
 
     # clone superbench
+    cd /home/yangwang1-vmss
+    
     rm -rf ./superbenchmark
     git init superbenchmark
     cd superbenchmark
