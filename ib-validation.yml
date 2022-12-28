@@ -1,78 +1,8 @@
-#!/bin/bash
-set -e
-set -x
-
-USER_NAME=$1
-HOST_LIST=$2
-SSH_PRIVATE_KEY=$3
-
-DIR=/home/${USER_NAME}/ib-validation
-mkdir -p $DIR
-
-apt-waitlock() {
-  while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do sleep 0.5; done
-}
-
-deploy_superbench(){
-    # Install dependencies
-    sudo apt-get update -y \
-        && sudo apt-get -y install \
-        python3.7-venv
-
-    # Link python3.7 as python3
-    sudo rm -rf /usr/bin/python3 \
-        && sudo  ln -s /usr/bin/python3.7 /usr/bin/python3
-
-    # Clone superbench
-    cd $DIR
-    
-    rm -rf ./superbenchmark
-    git init superbenchmark
-    cd superbenchmark
-    git remote add origin https://github.com/microsoft/superbenchmark.git
-    git fetch origin
-    git checkout -b main origin/main
-    
-    # Create a new virtual environment
-    rm -rf ./venv
-    python3 -m venv --system-site-packages ./venv
-    . ./venv/bin/activate
-
-    python3 -m pip install --upgrade pip setuptools
-
-    # Install superbench
-    python3 -m pip install .
-    make postinstall
-
-    # Deploy & Run superbench
-    sb deploy -f $DIR/remote.ini --private-key $DIR/private_key.txt
-    sb run -c $DIR/ib-validation.yaml -f $DIR/remote.ini
-}
-
-create_ssh_private_key(){
-    echo $SSH_PRIVATE_KEY >> $DIR/private_key.txt 
-    chmod 600 $DIR/private_key.txt 
-}
-
-create_remote_ini(){
-    formatted_string=$(echo "$HOST_LIST" | tr ' ' '\n')
-    cat << EOF > $DIR/remote.ini
-[all]
-$formatted_string
-
-[all:vars]
-ansible_ssh_private_key_file='$DIR/private_key.txt'
-ansible_user=$USER_NAME
-EOF
-}
-
-create_sb_config(){
-    cat << EOF > $DIR/ib-validation.yml
 version: v0.6
 superbench:
   enable:
   - ib-traffic:allpairs
-  - nccl-bw:allnodes
+  - nccl-bw:allpairs
   - model-benchmarks:stress
   monitor:
     enable: true
@@ -93,7 +23,7 @@ superbench:
         mca:
           routed: direct
         pattern:
-          type: all-nodes
+          type: pair-wise
         env:
           <<: *nccl_env
       parameters:
@@ -144,10 +74,3 @@ superbench:
     # model benchmark - training
     model-benchmarks:stress:
       <<: *torch_dist_config
-EOF
-}
-
-create_remote_ini
-create_ssh_private_key
-create_sb_config
-deploy_superbench

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.13.1.58284",
+      "templateHash": "17640539905352347882"
+    }
+  },
+  "parameters": {
+    "vmssName": {
+      "type": "string",
+      "defaultValue": "yangwang1-vmss",
+      "metadata": {
+        "description": "Name of vmss to be validated"
+      }
+    },
+    "vmssInstanceNames": {
+      "type": "array",
+      "metadata": {
+        "description": "List of vmss instances"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "admin",
+      "metadata": {
+        "description": "Admin name of specified vmss"
+      }
+    },
+    "vmssPrvivateKey": {
+      "type": "string",
+      "metadata": {
+        "description": "Private key of specified vmss"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', parameters('vmssName'), 'IB Validation')]",
+      "properties": {
+        "publisher": "Microsoft.Azure.Extensions",
+        "type": "CustomScript",
+        "typeHandlerVersion": "2.1",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"
+          ],
+          "commandToExecute": "[format('bash deploy_superbench.sh {0} {1} {2}', parameters('vmssInstanceNames'), parameters('adminUsername'), parameters('vmssPrvivateKey'))]"
+        }
+      }
+    }
+  ]
+}
