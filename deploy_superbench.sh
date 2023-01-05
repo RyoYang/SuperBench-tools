@@ -15,6 +15,8 @@ then
 fi
 
 DIR=/home/${USER_NAME}/ib-validation
+
+rm -rf $DIR
 mkdir -p $DIR
 
 apt-waitlock() {
@@ -138,9 +140,9 @@ superbench:
       parameters:
         msg_size: 8388608
         bidirectional: yes
-        ib_dev: mlx5_ib$LOCAL_RANK
-        gpu_dev: $LOCAL_RANK
-        numa_dev: $((LOCAL_RANK/2))
+        ib_dev: mlx5_ib\$LOCAL_RANK
+        gpu_dev: \$LOCAL_RANK
+        numa_dev: \$((LOCAL_RANK/2))
     nccl-bw:pair-wise:
       <<: *nccl_allreduce_config
     # model benchmark - training

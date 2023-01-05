@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "2599514344230766027"
+      "templateHash": "10806428250349012539"
     }
   },
   "parameters": {
@@ -18,22 +18,30 @@
     },
     "vmssInstanceNames": {
       "type": "string",
-      "defaultValue": "node1 node2 ...",
+      "defaultValue": "yangwang1-000039 yangwang1-00003A yangwang1-00003B yangwang1-00003C",
       "metadata": {
         "description": "List of vmss instances"
       }
     },
+    "masterNodeName": {
+      "type": "string",
+      "defaultValue": "yangwang1-00003A",
+      "metadata": {
+        "description": "The master node to deploy superbench"
+      }
+    },
     "adminUsername": {
       "type": "string",
-      "defaultValue": "admin",
+      "defaultValue": "yangwang1-vmss",
       "metadata": {
         "description": "Admin name of specified vmss"
       }
     },
-    "vmssPrvivateKey": {
+    "vmssPrvivateKeyPath": {
       "type": "string",
+      "defaultValue": "/home/yangwang1-vmss/private_key.txt",
       "metadata": {
-        "description": "Private key of specified vmss"
+        "description": "Path of Private key in specified vmss"
       }
     }
   },
@@ -41,17 +49,17 @@
     {
       "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/{1}', parameters('vmssName'), 'ibValidation')]",
+      "name": "[format('{0}/{1}', parameters('vmssName'), 'sb-ib')]",
       "properties": {
         "publisher": "Microsoft.Azure.Extensions",
         "type": "CustomScript",
-        "typeHandlerVersion": "2.1",
+        "typeHandlerVersion": "2.0",
         "autoUpgradeMinorVersion": true,
         "settings": {
           "fileUris": [
             "https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"
           ],
-          "commandToExecute": "[format('bash deploy_superbench.sh {0} {1} {2}', parameters('vmssInstanceNames'), parameters('adminUsername'), parameters('vmssPrvivateKey'))]"
+          "commandToExecute": "[format('bash deploy_superbench.sh {0} {1} {2} {3}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'))]"
         }
       }
     }
