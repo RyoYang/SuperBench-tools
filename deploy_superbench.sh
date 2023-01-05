@@ -4,7 +4,15 @@ set -x
 
 USER_NAME=$1
 HOST_LIST=$2
-SSH_PRIVATE_KEY=$3
+MASTER_NODE=$3
+SSH_PRIVATE_KEY_PATH=$4
+
+hostname=`hostname`
+if [[ "$hostname" != $MASTER_NODE ]]
+then
+    echo "not master node, skip deployment"
+    exit 0
+fi
 
 DIR=/home/${USER_NAME}/ib-validation
 mkdir -p $DIR
@@ -45,13 +53,8 @@ deploy_superbench(){
     make postinstall
 
     # Deploy & Run superbench
-    sb deploy -f $DIR/remote.ini --private-key $DIR/private_key.txt
+    sb deploy -f $DIR/remote.ini --private-key $SSH_PRIVATE_KEY_PATH
     sb run -c $DIR/ib-validation.yaml -f $DIR/remote.ini
-}
-
-create_ssh_private_key(){
-    echo $SSH_PRIVATE_KEY >> $DIR/private_key.txt 
-    chmod 600 $DIR/private_key.txt 
 }
 
 create_remote_ini(){
@@ -61,19 +64,19 @@ create_remote_ini(){
 $formatted_string
 
 [all:vars]
-ansible_ssh_private_key_file='$DIR/private_key.txt'
+ansible_ssh_private_key_file=$SSH_PRIVATE_KEY_PATH
 ansible_user=$USER_NAME
 EOF
 }
 
 create_sb_config(){
-    cat << EOF > $DIR/ib-validation.yml
+    cat << EOF > $DIR/ib-validation.yaml
 version: v0.6
 superbench:
   enable:
-  - ib-traffic:allpairs
-  - nccl-bw:allnodes
-  - model-benchmarks:stress
+  - ib-traffic:pair-wise
+  - nccl-bw:pair-wise
+  # - model-benchmarks:stress
   monitor:
     enable: true
     sample_duration: 1
@@ -90,10 +93,9 @@ superbench:
       - name: mpi
         proc_num: 8
         node_num: all
-        mca:
-          routed: direct
         pattern:
-          type: all-nodes
+          type: pair-wise
+          mpi_pattern: true
         env:
           <<: *nccl_env
       parameters:
@@ -126,7 +128,7 @@ superbench:
         model_action: [train]
         pin_memory: yes
   benchmarks:
-    ib-traffic:allpairs:
+    ib-traffic:pair-wise:
       modes:
       - name: mpi
         proc_num: 8
@@ -139,7 +141,7 @@ superbench:
         ib_dev: mlx5_ib$LOCAL_RANK
         gpu_dev: $LOCAL_RANK
         numa_dev: $((LOCAL_RANK/2))
-    nccl-bw:allpairs:
+    nccl-bw:pair-wise:
       <<: *nccl_allreduce_config
     # model benchmark - training
     model-benchmarks:stress:
@@ -148,6 +150,5 @@ EOF
 }
 
 create_remote_ini
-create_ssh_private_key
 create_sb_config
 deploy_superbench

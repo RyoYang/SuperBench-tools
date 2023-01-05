@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "17640539905352347882"
+      "templateHash": "2599514344230766027"
     }
   },
   "parameters": {
@@ -17,7 +17,8 @@
       }
     },
     "vmssInstanceNames": {
-      "type": "array",
+      "type": "string",
+      "defaultValue": "node1 node2 ...",
       "metadata": {
         "description": "List of vmss instances"
       }
@@ -40,7 +41,7 @@
     {
       "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/{1}', parameters('vmssName'), 'IB Validation')]",
+      "name": "[format('{0}/{1}', parameters('vmssName'), 'ibValidation')]",
       "properties": {
         "publisher": "Microsoft.Azure.Extensions",
         "type": "CustomScript",

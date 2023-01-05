@@ -109,13 +109,11 @@ for json_str in json_list:
     types = []
     node = result["node"]
     for field, value in result.items():
-        if "algbw" in field:
+        if "algbw" in field or "ib_write" in field:
             fields.append(field.replace(":", "_").replace("/", '_').replace("-", '_'))
             values.append(value)
             types.append("string" if type(value) == str else "real")
 
-
-    
     if fields and values:
         # Insert timestamp
         fields.insert(0, "PreciseTimeStamp")
@@ -134,9 +132,4 @@ for json_str in json_list:
     if "algbw" in create_table_string:
         print(fields)
         print(create_table_string)
-    ingest_to_kusto(df, KUSTO_TABLE)
-        
-    
-        # ingest_to_kusto(df, KUSTO_TABLE)
-    # print("{}['nccl-bw:ib/allreduce_1073741824_algbw']: {}".format(result['node'], result['nccl-bw:ib/allreduce_1073741824_algbw']))
-    
+    # ingest_to_kusto(df, KUSTO_TABLE)
