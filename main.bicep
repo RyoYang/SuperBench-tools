@@ -14,6 +14,24 @@ param adminUsername string = 'yangwang1-vmss'
 @description('Path of Private key in specified vmss')
 param vmssPrvivateKeyPath string = '/home/yangwang1-vmss/private_key.txt'
 
+@description('Run ib-traffic validation benchmark on vmss')
+param RunIbTrafficBenchmark bool = false
+
+@description('Run NCCL validation benchmark on vmss')
+param runNcclTestBenchmark bool = false
+
+@allowed([
+  'all-nodes'
+  'pair-wise'
+  'k-batch'
+  'topo-aware'
+])
+@description('Select the Pattern of NCCL validation benchmark')
+param NcclPattern string = 'all-nodes'
+
+@description('Args for Configuration')
+param ArgsForConfig string = ''
+
 // defined an existing vmss object
 resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2022-08-01' existing = {
   name: vmssName
@@ -28,7 +46,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2022-08-01' existing = 
         fileUris: [
           'https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh'
         ]
-        commandToExecute: 'bash deploy_superbench.sh ${adminUsername} ${vmssInstanceNames} ${masterNodeName} ${vmssPrvivateKeyPath}'
+        commandToExecute: 'bash deploy_superbench.sh ${adminUsername} "${vmssInstanceNames}" ${masterNodeName} ${vmssPrvivateKeyPath} ${RunIbTrafficBenchmark} ${runNcclTestBenchmark} ${NcclPattern} ${ArgsForConfig}'
       }
     }
   }

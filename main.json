@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "10806428250349012539"
+      "templateHash": "9481409913456193901"
     }
   },
   "parameters": {
@@ -43,6 +43,40 @@
       "metadata": {
         "description": "Path of Private key in specified vmss"
       }
+    },
+    "RunIbTrafficBenchmark": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Run ib-traffic validation benchmark on vmss"
+      }
+    },
+    "runNcclTestBenchmark": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Run NCCL validation benchmark on vmss"
+      }
+    },
+    "NcclPattern": {
+      "type": "string",
+      "defaultValue": "all-nodes",
+      "metadata": {
+        "description": "Select the Pattern of NCCL validation benchmark"
+      },
+      "allowedValues": [
+        "all-nodes",
+        "pair-wise",
+        "k-batch",
+        "topo-aware"
+      ]
+    },
+    "ArgsForConfig": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Args for Configuration"
+      }
     }
   },
   "resources": [
@@ -59,7 +93,7 @@
           "fileUris": [
             "https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"
           ],
-          "commandToExecute": "[format('bash deploy_superbench.sh {0} {1} {2} {3}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'))]"
+          "commandToExecute": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), parameters('ArgsForConfig'))]"
         }
       }
     }

@@ -1,0 +1,26 @@
+# SuperBench rules
+version: v0.6
+superbench:
+  rules:
+    failure_rule:
+      function: value
+      criteria: 'lambda x:x!=0'
+      categories: FailedTest
+      metrics:
+        - ib-traffic:pair-wise/return_code
+        - nccl-bw:pair-wise/return_code
+        - model-benchmarks:stress-run2/.*return_code
+    ib_traffic_rule:
+      categories: IB_DIST
+      metrics:
+      - ib-traffic:pair-wise/ib_write_bw_.*
+    nccl_store_rule:
+      categories: NCCL_DIST
+      store: True
+      metrics:
+        - nccl-bw:pair-wise/allreduce_.*8589934592_busbw
+    nccl_rule:
+      function: multi_rules
+      criteria: 'lambda label: bool(min(label["nccl_store_rule"].values())/max(label["nccl_store_rule"].values())<0.95)'
+      categories: NCCL_DIST
+
