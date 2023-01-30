@@ -108,7 +108,7 @@ var linuxConfiguration = {
   }
 }
 
-var fileUris = 'https://raw.githubusercontent.com/RyoYang/SuperBench-tools/main/deploy_superbench.sh'
+var fileUris = ['https://raw.githubusercontent.com/RyoYang/SuperBench-tools/main/deploy_superbench.sh']
 
 var command = 'bash deploy_superbench.sh ${adminUsername} "${vmssInstanceNames}" ${masterNodeName} ${vmssPrvivateKeyPath} ${RunIbTrafficBenchmark} ${runNcclTestBenchmark} ${NcclPattern} ${BatchSize} ${IbnetdiscoverPath}'
 

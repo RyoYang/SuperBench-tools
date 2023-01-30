@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "5705429072497026505"
+      "templateHash": "8140319505107440812"
     }
   },
   "parameters": {
@@ -115,22 +115,29 @@
     },
     "NcclPattern": {
       "type": "string",
-      "defaultValue": "all-nodes",
+      "defaultValue": "all_nodes",
       "metadata": {
         "description": "Select the Pattern of NCCL validation benchmark"
       },
       "allowedValues": [
-        "all-nodes",
-        "pair-wise",
-        "k-batch",
-        "topo-aware"
+        "all_nodes",
+        "pair_wise",
+        "k_batch",
+        "topo_aware"
       ]
     },
-    "ArgsForConfig": {
+    "BatchSize": {
+      "type": "int",
+      "defaultValue": 3,
+      "metadata": {
+        "description": "Batch size for k-batch pattern"
+      }
+    },
+    "IbnetdiscoverPath": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Args for Configuration"
+        "description": "Ibnetdiscover Path for topo-aware pattern"
       }
     },
     "utcValue": {
@@ -176,30 +183,27 @@
         ]
       }
     },
-    "fileUris": "https://raw.githubusercontent.com/RyoYang/SuperBench-tools/main/deploy_superbench.sh",
-    "command": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), parameters('ArgsForConfig'))]"
+    "fileUris": [
+      "https://raw.githubusercontent.com/RyoYang/SuperBench-tools/main/deploy_superbench.sh"
+    ],
+    "command": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7} {8}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), parameters('BatchSize'), parameters('IbnetdiscoverPath'))]"
   },
   "resources": [
     {
       "condition": "[parameters('useExistingVmss')]",
       "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/{1}', parameters('vmssName'), 'sb-ib')]",
+      "name": "[format('{0}/{1}', parameters('vmssName'), 'sb-ib2')]",
       "properties": {
         "publisher": "Microsoft.Azure.Extensions",
         "type": "CustomScript",
         "typeHandlerVersion": "2.0",
         "autoUpgradeMinorVersion": true,
         "settings": {
-          "fileUris": [
-            "https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"
-          ],
-          "commandToExecute": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7} {8}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2022-01-31-preview').principalId, parameters('ArgsForConfig'))]"
+          "fileUris": "[variables('fileUris')]",
+          "commandToExecute": "[variables('command')]"
         }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
-      ]
+      }
     },
     {
       "condition": "[not(parameters('useExistingVmss'))]",
@@ -411,7 +415,7 @@
                   "type": "CustomScript",
                   "typeHandlerVersion": "2.1",
                   "autoUpgradeMinorVersion": true,
-                  "protectedSettings": {
+                  "settings": {
                     "fileUris": "[variables('fileUris')]",
                     "commandToExecute": "[variables('command')]"
                   }
