@@ -19,7 +19,7 @@ DIR=/home/${USER_NAME}/ib-validation
 CONFIG_DIR=$DIR/superbenchmark/superbench/config/azure_ndv4_distributed.yaml
 RESULT_DIR=$DIR/superbench-results
 LOG_NAME=`date "+%Y-%m-%d-%H-%M-%S"`
-RESULT_LOG_DIR=$RESULT_DIR/superbench-results/$LOG_NAME
+RESULT_LOG_DIR=$RESULT_DIR/$LOG_NAME
 
 DIAGNOSIS_SUMMARY_FILE=$RESULT_LOG_DIR/diagnosis_summary.json
 
@@ -86,7 +86,7 @@ else
 fi
 
 if [[ "$NCCL_PATTERN" == "k_batch" ]]; then
-    sed -i "s/batch:\(.*\)/batch: $BATCH_SIZE/g" $CONFIG_DIR
+    sed -i "s/ batch:\(.*\)/ batch: $BATCH_SIZE/g" $CONFIG_DIR
 fi
 
 if [[ "$NCCL_PATTERN" == "topo_aware" ]]; then
@@ -95,7 +95,7 @@ fi
 
 # Deploy & Run superbench
 sb deploy -f $DIR/remote.ini --private-key $SSH_PRIVATE_KEY_PATH
-sb run -c $CONFIG_DIR -f $DIR/remote.ini --output-dir $RESULT_DIR
+sb run -c $CONFIG_DIR -f $DIR/remote.ini
 # sb result diagnosis -d $RESULT_LOG_DIR/results-summary.jsonl -b $DIR/sbib-ndv4.json -r $DIR/diagnosis-rules.yaml --output-dir $RESULT_LOG_DIR --output-all --output-file-format json
 
 
