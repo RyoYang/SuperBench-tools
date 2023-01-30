@@ -71,13 +71,13 @@ ansible_user=$USER_NAME
 EOF
 
 # Update config file
-if [[ $RUN_IB_TRAFFIC == "true" ]]; then
+if [[ $RUN_IB_TRAFFIC == "True" ]]; then
     sed -i "s/#- ib-traffic:pair_wise/- ib-traffic:pair_wise/g" $CONFIG_DIR
 else
-    sed -i "s/- ib-traffic:pair_wise/#- ib-traffic:pair_wise/g" $CONFIG_DIR
+    sed -i "s/ - ib-traffic:pair_wise/ #- ib-traffic:pair_wise/g" $CONFIG_DIR
 fi
 
-if [[ $RUN_NCCL_TEST == "true" ]]; then
+if [[ $RUN_NCCL_TEST == "True" ]]; then
     sed -i "s/#- nccl-bw:/- nccl-bw:/g" $CONFIG_DIR
     sed -i "s#- nccl-bw:\(.*\)#- nccl-bw:${NCCL_PATTERN}#g" $CONFIG_DIR
     sed -i "s#<<: \*nccl_\(.*\)_pattern#<<: \*nccl_${NCCL_PATTERN}_pattern#g" $CONFIG_DIR
