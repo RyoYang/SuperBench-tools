@@ -2,155 +2,137 @@
 set -e
 set -x
 
+echo "working directory:"
+pwd
+
 USER_NAME=$1
 HOST_LIST=$2
 MASTER_NODE=$3
 SSH_PRIVATE_KEY_PATH=$4
-
-hostname=`hostname`
-if [[ "$hostname" != $MASTER_NODE ]]
-then
-    echo "not master node, skip deployment"
-    exit 0
-fi
+RUN_IB_TRAFFIC=$5
+RUN_NCCL_TEST=$6
+NCCL_PATTERN=$7
+BATCH_SIZE=$8
+IBNETDISCOVER_PATH=$9
 
 DIR=/home/${USER_NAME}/ib-validation
+CONFIG_DIR=$DIR/superbenchmark/superbench/config/azure_ndv4_distributed.yaml
+RESULT_DIR=$DIR/superbench-results
+LOG_NAME=`date "+%Y-%m-%d-%H-%M-%S"`
+RESULT_LOG_DIR=$RESULT_DIR/superbench-results/$LOG_NAME
+
+DIAGNOSIS_SUMMARY_FILE=$RESULT_DIR/superbench-results/$LOG_NAME/diagnosis_summary.json
 
 rm -rf $DIR
+
 mkdir -p $DIR
+mkdir -p $RESULT_DIR
+mkdir -p $RESULT_LOG_DIR
 
-apt-waitlock() {
-  while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do sleep 0.5; done
-}
+# Install dependencies
+sudo apt-get update -y \
+    && sudo apt-get -y install \
+    python3.7-venv
 
-deploy_superbench(){
-    # Install dependencies
-    sudo apt-get update -y \
-        && sudo apt-get -y install \
-        python3.7-venv
+# Link python3.7 as python3
+sudo rm -rf /usr/bin/python3 \
+    && sudo  ln -s /usr/bin/python3.7 /usr/bin/python3
 
-    # Link python3.7 as python3
-    sudo rm -rf /usr/bin/python3 \
-        && sudo  ln -s /usr/bin/python3.7 /usr/bin/python3
+# Clone superbench
+cd $DIR
 
-    # Clone superbench
-    cd $DIR
-    
-    rm -rf ./superbenchmark
-    git init superbenchmark
-    cd superbenchmark
-    git remote add origin https://github.com/microsoft/superbenchmark.git
-    git fetch origin
-    git checkout -b main origin/main
-    
-    # Create a new virtual environment
-    rm -rf ./venv
-    python3 -m venv --system-site-packages ./venv
-    . ./venv/bin/activate
+rm -rf ./superbenchmark
+git init superbenchmark
+cd superbenchmark
+git remote add origin https://github.com/microsoft/superbenchmark.git
+git fetch origin
+git checkout -b yangwang1/arm-temp origin/yangwang1/arm-temp
 
-    python3 -m pip install --upgrade pip setuptools
+# Create a new virtual environment
+rm -rf ./venv
+python3 -m venv --system-site-packages ./venv
+. ./venv/bin/activate
 
-    # Install superbench
-    python3 -m pip install .
-    make postinstall
+python3 -m pip install --upgrade pip setuptools
 
-    # Deploy & Run superbench
-    sb deploy -f $DIR/remote.ini --private-key $SSH_PRIVATE_KEY_PATH
-    sb run -c $DIR/ib-validation.yaml -f $DIR/remote.ini
-}
+# Install superbench
+python3 -m pip install .
+make postinstall
 
-create_remote_ini(){
-    formatted_string=$(echo "$HOST_LIST" | tr ' ' '\n')
-    cat << EOF > $DIR/remote.ini
+# Create inventory file
+splited_host_list=$(echo "$HOST_LIST" | tr ' ' '\n')
+cat << EOF > $DIR/remote.ini
 [all]
-$formatted_string
+$splited_host_list
 
 [all:vars]
 ansible_ssh_private_key_file=$SSH_PRIVATE_KEY_PATH
 ansible_user=$USER_NAME
 EOF
-}
 
-create_sb_config(){
-    cat << EOF > $DIR/ib-validation.yaml
-version: v0.6
-superbench:
-  enable:
-  - ib-traffic:pair-wise
-  - nccl-bw:pair-wise
-  # - model-benchmarks:stress
-  monitor:
-    enable: true
-    sample_duration: 1
-    sample_interval: 10
-  var:
-    nccl_env: &nccl_env
-      NCCL_IB_PCI_RELAXED_ORDERING: '1'
-      NCCL_NET_GDR_LEVEL: '5'
-      NCCL_TOPO_FILE: /opt/microsoft/ndv4-topo.xml
-      NCCL_DEBUG: WARN
-    nccl_allreduce_config: &nccl_allreduce_config
-      timeout: 1200
-      modes:
-      - name: mpi
-        proc_num: 8
-        node_num: all
-        pattern:
-          type: pair-wise
-          mpi_pattern: true
-        env:
-          <<: *nccl_env
-      parameters:
-        # run_count: 5
-        minbytes: 1K
-        maxbytes: 16G
-        stepfactor: 2
-        check: 1
-        warmup_iters: 20
-        iters: 100
-    torch_dist_config: &torch_dist_config
-      timeout: 3600
-      modes:
-      - name: torch.distributed
-        proc_num: 8
-        node_num: all
-        env:
-          <<: *nccl_env
-      frameworks: [pytorch]
-      models: [gpt2-large]
-      parameters:
-        # run_count: 5
-        duration: 1800
-        num_warmup: 64
-        num_steps: -100
-        sample_count: 8192
-        batch_size: 8
-        seq_len: 224
-        precision: [float32]
-        model_action: [train]
-        pin_memory: yes
-  benchmarks:
-    ib-traffic:pair-wise:
-      modes:
-      - name: mpi
-        proc_num: 8
-        node_num: all
-        mca:
-          routed: direct
-      parameters:
-        msg_size: 8388608
-        bidirectional: yes
-        ib_dev: mlx5_ib\$LOCAL_RANK
-        gpu_dev: \$LOCAL_RANK
-        numa_dev: \$((LOCAL_RANK/2))
-    nccl-bw:pair-wise:
-      <<: *nccl_allreduce_config
-    # model benchmark - training
-    model-benchmarks:stress:
-      <<: *torch_dist_config
+# Update config file
+if [[ $RUN_IB_TRAFFIC == "true" ]]; then
+    sed -i "s/# - ib-traffic:pair_ise/- ib-traffic:pair_wise/g" $CONFIG_DIR
+fi
+
+if [[ $RUN_NCCL_TEST == "true" ]]; then
+    sed -i "s/# - nccl-bw:all-nodes/- nccl-bw:$NCCL_PATTERN/g" $CONFIG_DIR
+    sed -i "s/<<: *nccl_all_nodes_pattern/<<: *nccl_${NCCL_PATTERN}_pattern/g" $CONFIG_DIR
+fi
+
+if [[ "$NCCL_PATTERN" == "k_batch" ]]; then
+    sed -i "s/batch: 3/batch: $BATCH_SIZE/g" $CONFIG_DIR
+fi
+
+if [[ "$NCCL_PATTERN" == "topo_aware" ]]; then
+    sed -i "s/ibnetdiscover:/ibnetdiscover: $IBNETDISCOVER_PATH/g" $CONFIG_DIR
+fi
+
+# Deploy & Run superbench
+sb deploy -f $DIR/remote.ini --private-key $SSH_PRIVATE_KEY_PATH
+sb run -c $DIR/ib-validation.yaml -f $DIR/remote.ini --output-dir $RESULT_DIR
+# sb result diagnosis -d $RESULT_LOG_DIR/results-summary.jsonl -b $DIR/sbib-ndv4.json -r $DIR/diagnosis-rules.yaml --output-dir $RESULT_LOG_DIR --output-all --output-file-format json
+
+
+python3 - << EOF
+import subprocess
+import json
+
+def execute_cmd(cmd: str):
+    print(f"execute {cmd}")
+    output = subprocess.check_output(cmd, shell=True)
+    print(f"output is: {output}")
+    return output
+
+def generate_ansible_host(ipaddress, username, host_path):
+    ips = json.loads(ipaddress)
+    lines = []
+    lines.append('[all]')
+    for ip in ips:
+        lines.append(ip)
+    lines.append('')
+
+    lines.append('[master]')
+    lines.append(ips[0])
+    lines.append('')
+
+    lines.append('[all:vars]')
+    lines.append('ansible_user=' + username)
+    with open(host_path, 'w') as f:
+        f.writelines([line + '\n' for line in lines])
+
+
+if __name__ == "__main__":
+    print("start to run host_generator.py")
+    hosts = ''
+    if (len(hosts) == 0):
+        print("hosts is empty, will deploy to all instances in vmss")
+        output = execute_cmd(f'az vmss nic list -g $RESOURCE_GROUP --vmss-name $VMSS_NAME --query "[].ipConfigurations[].privateIpAddress"')
+    else:
+        output = json.dumps(hosts.split(','))
+
+    generate_ansible_host(output, $username, $path)
+    print("exit host_generator.py")
 EOF
-}
 
-create_remote_ini
-create_sb_config
-deploy_superbench
+echo "Back to bash"

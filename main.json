@@ -5,10 +5,31 @@
     "_generator": {
       "name": "bicep",
       "version": "0.13.1.58284",
-      "templateHash": "9481409913456193901"
+      "templateHash": "5705429072497026505"
     }
   },
   "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "useExistingVmss": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether use existing vmss"
+      }
+    },
+    "useExistingIdentity": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether use existing Indentity"
+      }
+    },
     "vmssName": {
       "type": "string",
       "defaultValue": "yangwang1-vmss",
@@ -16,18 +37,20 @@
         "description": "Name of vmss to be validated"
       }
     },
-    "vmssInstanceNames": {
+    "instanceSku": {
       "type": "string",
-      "defaultValue": "yangwang1-000039 yangwang1-00003A yangwang1-00003B yangwang1-00003C",
+      "defaultValue": "Standard_ND96asr_v4",
       "metadata": {
-        "description": "List of vmss instances"
+        "description": "Sku of instances in the new VM Scale Set."
       }
     },
-    "masterNodeName": {
-      "type": "string",
-      "defaultValue": "yangwang1-00003A",
+    "instanceCount": {
+      "type": "int",
+      "defaultValue": 3,
+      "maxValue": 100,
+      "minValue": 1,
       "metadata": {
-        "description": "The master node to deploy superbench"
+        "description": "Number of VM instances (100 or less). in new VM Scale Set."
       }
     },
     "adminUsername": {
@@ -35,6 +58,38 @@
       "defaultValue": "yangwang1-vmss",
       "metadata": {
         "description": "Admin name of specified vmss"
+      }
+    },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "sshPublicKey",
+      "allowedValues": [
+        "sshPublicKey",
+        "password"
+      ],
+      "metadata": {
+        "description": "Type of authentication to use on the VM. SSH key is recommended."
+      }
+    },
+    "adminPasswordOrKey": {
+      "type": "secureString",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SSH Key or password for the VM. Depends authenticationType."
+      }
+    },
+    "masterNodeName": {
+      "type": "string",
+      "defaultValue": "yangwang1-00003A",
+      "metadata": {
+        "description": "The master node to deploy"
+      }
+    },
+    "vmssInstanceNames": {
+      "type": "string",
+      "defaultValue": "yangwang1-000039 yangwang1-00003A yangwang1-00003B yangwang1-00003C",
+      "metadata": {
+        "description": "List of vmss instances"
       }
     },
     "vmssPrvivateKeyPath": {
@@ -77,10 +132,56 @@
       "metadata": {
         "description": "Args for Configuration"
       }
+    },
+    "utcValue": {
+      "type": "string",
+      "defaultValue": "[utcNow()]"
     }
+  },
+  "variables": {
+    "addressPrefix": "10.0.0.0/16",
+    "subnetPrefix": "10.0.0.0/24",
+    "virtualNetworkName": "[format('{0}-vnet', parameters('vmssName'))]",
+    "publicIPAddressName": "[format('{0}-pip', parameters('vmssName'))]",
+    "subnetName": "[format('{0}-subnet', parameters('vmssName'))]",
+    "loadBalancerName": "[format('{0}-lb', parameters('vmssName'))]",
+    "natPoolName": "[format('{0}-natpool', parameters('vmssName'))]",
+    "bePoolName": "[format('{0}-bepool', parameters('vmssName'))]",
+    "natStartPort": 50000,
+    "natEndPort": 51000,
+    "natBackendPort": 22,
+    "nicName": "[format('{0}-nic', parameters('vmssName'))]",
+    "ipConfigName": "[format('{0}-ipconfig', parameters('vmssName'))]",
+    "frontEndIPConfigID": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('loadBalancerName'), 'loadBalancerFrontEnd')]",
+    "probeName": "sb-probe",
+    "probeID": "[format('{0}/probes/{1}', resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), variables('probeName'))]",
+    "lbRuleName": "sb-lbrule",
+    "managedIdentityName": "[format('{0}-identity', parameters('vmssName'))]",
+    "contributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+    "roleAssignmentName": "[guid(variables('contributorRoleId'), resourceGroup().id, parameters('utcValue'))]",
+    "imageReference": {
+      "publisher": "microsoft-dsvm",
+      "offer": "ubuntu-hpc",
+      "sku": "2004",
+      "version": "latest"
+    },
+    "linuxConfiguration": {
+      "disablePasswordAuthentication": true,
+      "ssh": {
+        "publicKeys": [
+          {
+            "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+            "keyData": "[parameters('adminPasswordOrKey')]"
+          }
+        ]
+      }
+    },
+    "fileUris": "https://raw.githubusercontent.com/RyoYang/SuperBench-tools/main/deploy_superbench.sh",
+    "command": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), parameters('ArgsForConfig'))]"
   },
   "resources": [
     {
+      "condition": "[parameters('useExistingVmss')]",
       "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
       "apiVersion": "2020-06-01",
       "name": "[format('{0}/{1}', parameters('vmssName'), 'sb-ib')]",
@@ -93,9 +194,238 @@
           "fileUris": [
             "https://raw.githubusercontent.com/RyoYang/SuperBench-ibvalidation/main/deploy_superbench.sh"
           ],
-          "commandToExecute": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), parameters('ArgsForConfig'))]"
+          "commandToExecute": "[format('bash deploy_superbench.sh {0} \"{1}\" {2} {3} {4} {5} {6} {7} {8}', parameters('adminUsername'), parameters('vmssInstanceNames'), parameters('masterNodeName'), parameters('vmssPrvivateKeyPath'), parameters('RunIbTrafficBenchmark'), parameters('runNcclTestBenchmark'), parameters('NcclPattern'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2022-01-31-preview').principalId, parameters('ArgsForConfig'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[not(parameters('useExistingVmss'))]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2022-01-01",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('subnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "condition": "[not(parameters('useExistingVmss'))]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2022-01-01",
+      "name": "[variables('publicIPAddressName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('vmssName')]"
         }
       }
+    },
+    {
+      "condition": "[not(parameters('useExistingVmss'))]",
+      "type": "Microsoft.Network/loadBalancers",
+      "apiVersion": "2022-01-01",
+      "name": "[variables('loadBalancerName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "LoadBalancerFrontEnd",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[variables('bePoolName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "[variables('lbRuleName')]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('frontEndIPConfigID')]"
+              },
+              "frontendPort": 80,
+              "backendPort": 7000,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 5,
+              "protocol": "Tcp",
+              "enableTcpReset": false,
+              "loadDistribution": "Default",
+              "disableOutboundSnat": false,
+              "backendAddressPool": {
+                "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), variables('bePoolName'))]"
+              },
+              "probe": {
+                "id": "[variables('probeID')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "[variables('probeName')]",
+            "id": "[variables('probeID')]",
+            "properties": {
+              "protocol": "Http",
+              "port": 7999,
+              "requestPath": "/",
+              "intervalInSeconds": 5,
+              "numberOfProbes": 1
+            }
+          }
+        ],
+        "inboundNatPools": [
+          {
+            "name": "[variables('natPoolName')]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('frontEndIPConfigID')]"
+              },
+              "protocol": "Tcp",
+              "frontendPortRangeStart": "[variables('natStartPort')]",
+              "frontendPortRangeEnd": "[variables('natEndPort')]",
+              "backendPort": "[variables('natBackendPort')]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+      ]
+    },
+    {
+      "condition": "[not(parameters('useExistingIdentity'))]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2022-01-31-preview",
+      "name": "[variables('managedIdentityName')]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "condition": "[not(parameters('useExistingIdentity'))]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[variables('roleAssignmentName')]",
+      "properties": {
+        "roleDefinitionId": "[variables('contributorRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2022-01-31-preview').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[not(parameters('useExistingVmss'))]",
+      "type": "Microsoft.Compute/virtualMachineScaleSets",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('vmssName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('instanceSku')]",
+        "tier": "Standard",
+        "capacity": "[parameters('instanceCount')]"
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "singlePlacementGroup": true,
+        "overprovision": false,
+        "upgradePolicy": {
+          "mode": "Manual"
+        },
+        "virtualMachineProfile": {
+          "storageProfile": {
+            "osDisk": {
+              "createOption": "FromImage",
+              "caching": "ReadWrite"
+            },
+            "imageReference": "[variables('imageReference')]"
+          },
+          "osProfile": {
+            "computerNamePrefix": "[parameters('vmssName')]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPasswordOrKey')]",
+            "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]"
+          },
+          "networkProfile": {
+            "networkInterfaceConfigurations": [
+              {
+                "name": "[variables('nicName')]",
+                "properties": {
+                  "primary": true,
+                  "ipConfigurations": [
+                    {
+                      "name": "[variables('ipConfigName')]",
+                      "properties": {
+                        "subnet": {
+                          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName')), '2022-01-01').subnets[0].id]"
+                        },
+                        "loadBalancerBackendAddressPools": [
+                          {
+                            "id": "[reference(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), '2022-01-01').backendAddressPools[0].id]"
+                          }
+                        ],
+                        "loadBalancerInboundNatPools": [
+                          {
+                            "id": "[reference(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), '2022-01-01').inboundNatPools[0].id]"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensionProfile": {
+            "extensions": [
+              {
+                "name": "[format('deploy-{0}', deployment().name)]",
+                "properties": {
+                  "publisher": "Microsoft.Azure.Extensions",
+                  "type": "CustomScript",
+                  "typeHandlerVersion": "2.1",
+                  "autoUpgradeMinorVersion": true,
+                  "protectedSettings": {
+                    "fileUris": "[variables('fileUris')]",
+                    "commandToExecute": "[variables('command')]"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+      ]
     }
   ]
 }
